@@ -35,3 +35,4 @@ go.work.sum
 sn-invoices
 cricri-servicenow-integration
 debug-page.html
+local.mk

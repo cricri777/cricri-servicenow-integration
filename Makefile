@@ -1,3 +1,5 @@
+-include local.mk
+
 URL ?=
 OUT ?=
 NAME ?=

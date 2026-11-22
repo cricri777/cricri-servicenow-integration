@@ -11,9 +11,11 @@ Go and Chrome or Chromium. Run `make check` to verify them.
 ## Usage
 
 ```
-make run URL='https://fx.service-now.com/cts?id=invoices' OUT=~/Drive/invoices NAME=fx
+make run URL='https://acme.service-now.com/cts?id=invoices' OUT=~/Drive/invoices NAME=acme
 ```
 
 With `--headed`, log in by hand in the browser window and the program waits up to 5 minutes for the invoices. Otherwise the program asks for the email and the password when `SN_EMAIL` and `SN_PASS` are not set.
+
+Put your own commands in `local.mk`, which git ignores and the Makefile includes.
 
 Files are named `<yyyy-mm-dd>_<NAME>_<original name>`. Existing files are skipped. `NAME` defaults to the first label of the URL host.

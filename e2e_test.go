@@ -62,12 +62,12 @@ func TestEndToEndAgainstFakePortal(t *testing.T) {
 	server := httptest.NewServer(fakePortal())
 	defer server.Close()
 	outDir := t.TempDir()
-	cfg := config{URL: server.URL + "/portal", OutDir: outDir, Firm: "fx", Email: "me@example.com", Password: "secret"}
+	cfg := config{URL: server.URL + "/portal", OutDir: outDir, Firm: "acme", Email: "me@example.com", Password: "secret"}
 
 	if err := run(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"2026-01-10_fx_a.pdf", "2026-02-10_fx_b.pdf"} {
+	for _, name := range []string{"2026-01-10_acme_a.pdf", "2026-02-10_acme_b.pdf"} {
 		if _, err := os.Stat(filepath.Join(outDir, name)); err != nil {
 			t.Fatalf("missing %s: %v", name, err)
 		}
