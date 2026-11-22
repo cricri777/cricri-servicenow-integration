@@ -1,0 +1,8 @@
+[Unit]
+Description=Download the ServiceNow invoices
+
+[Service]
+Type=oneshot
+WorkingDirectory=@DIR@
+Environment=PATH=%h/.local/share/mise/shims:/usr/local/bin:/usr/bin
+ExecStart=/usr/bin/env dotenvx run -- @DIR@/scripts/scheduled-run.sh

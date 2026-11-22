@@ -55,6 +55,12 @@ make acme
 - The login has two steps: the email, then the password. A portal with MFA is not handled.
 - With `--headed`, log in by hand in the browser window. The program waits up to 5 minutes for the invoices.
 
+## Schedule
+
+`make install-timer` installs a systemd user timer that runs `dotenvx run -- scripts/scheduled-run.sh` on the 1st, 11th and 21st at 08:00, and after boot when a run was missed.
+
+The variables come from the dotenvx `.env` file in the repo, which needs `SN_EMAIL`, `SN_PASS`, `SN_URL`, `SN_OUT`, `SN_NAME` and `NTFY_TOPIC`, a secret topic name. Subscribe to that topic in the ntfy app to get a push notification when `make run` fails, or on the 21st or later when `SN_OUT` has no file from the last 31 days.
+
 ## Output
 
 Files are named `<yyyy-mm-dd>_<NAME>_<original name>`, and existing files are skipped. `NAME` defaults to the first label of the URL host.
