@@ -16,16 +16,24 @@ func fakePortal() http.Handler {
 	mux.HandleFunc("/portal", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		if _, err := r.Cookie("session"); err != nil {
-			fmt.Fprint(w, `<form method="post" action="/login">
-				<input type="text" name="user_name"><input type="password" name="pass"><input type="submit"></form>`)
+			if _, err := r.Cookie("email"); err != nil {
+				fmt.Fprint(w, `<form method="post" action="/email"><input type="text" name="user_name"><button type="submit">Submit</button></form>`)
+				return
+			}
+			fmt.Fprint(w, `<form method="post" action="/login"><input type="password" name="pass"><button type="submit">Submit</button></form>`)
 			return
 		}
 		fmt.Fprint(w, `<table>
 			<tr ng-click="onInvoiceClick(invoice)" onclick="location='/sys_attachment.do?sys_id=a'"><td>2026-01-10</td><td>2026-01-31</td><td>P</td></tr>
 			<tr ng-click="onInvoiceClick(invoice)" onclick="location='/sys_attachment.do?sys_id=b'"><td>2026-02-10</td><td>2026-02-28</td><td>P</td></tr></table>`)
 	})
+	mux.HandleFunc("/email", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "email", Value: r.FormValue("user_name"), Path: "/"})
+		http.Redirect(w, r, "/portal", http.StatusSeeOther)
+	})
 	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-		if r.FormValue("user_name") != "me@example.com" || r.FormValue("pass") != "secret" {
+		email, err := r.Cookie("email")
+		if err != nil || email.Value != "me@example.com" || r.FormValue("pass") != "secret" {
 			http.Error(w, "bad credentials", http.StatusUnauthorized)
 			return
 		}

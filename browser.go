@@ -141,14 +141,28 @@ func waitForDownload(ctx context.Context, directory string) (string, error) {
 	}
 }
 
-func login(ctx context.Context, email, password string) error {
-	probeCtx, cancelProbe := context.WithTimeout(ctx, 15*time.Second)
+func isVisibleWithin(ctx context.Context, selector chromedp.CSS, wait time.Duration) bool {
+	probeCtx, cancelProbe := context.WithTimeout(ctx, wait)
 	defer cancelProbe()
-	if err := chromedp.Do(probeCtx, chromedp.WaitVisible(passwordSelector)); err != nil {
+	return chromedp.Do(probeCtx, chromedp.WaitVisible(selector)) == nil
+}
+
+func login(ctx context.Context, email, password string) error {
+	if !isVisibleWithin(ctx, emailSelector, 15*time.Second) {
 		return nil
 	}
+	if err := chromedp.Do(ctx, chromedp.SendKeys(emailSelector, email)); err != nil {
+		return err
+	}
+	if !isVisibleWithin(ctx, passwordSelector, time.Second) {
+		if err := chromedp.Do(ctx, chromedp.SendKeys(emailSelector, kb.Enter)); err != nil {
+			return err
+		}
+		if !isVisibleWithin(ctx, passwordSelector, 30*time.Second) {
+			return errors.New("the password field did not appear after the email step")
+		}
+	}
 	return chromedp.Do(ctx,
-		chromedp.SendKeys(emailSelector, email),
 		chromedp.SendKeys(passwordSelector, password+kb.Enter),
 		chromedp.Sleep(5*time.Second),
 	)
