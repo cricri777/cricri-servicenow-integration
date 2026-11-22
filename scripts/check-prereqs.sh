@@ -20,13 +20,4 @@ if [ "$chrome_found" -eq 0 ]; then
   missing=1
 fi
 
-if [ "${1:-}" = "--env" ]; then
-  for variable in SN_EMAIL SN_PASS; do
-    if [ -z "${!variable:-}" ]; then
-      echo "missing environment variable: $variable" >&2
-      missing=1
-    fi
-  done
-fi
-
 exit "$missing"

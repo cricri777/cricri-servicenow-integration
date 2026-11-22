@@ -14,5 +14,5 @@ verify: check
 	./scripts/verify.sh
 
 run: build
-	./scripts/check-prereqs.sh --env
+	./scripts/check-prereqs.sh
 	./sn-invoices --url "$(URL)" --out "$(OUT)" --name "$(NAME)"

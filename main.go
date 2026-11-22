@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -9,7 +10,10 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"strings"
 	"time"
+
+	"golang.org/x/term"
 )
 
 type config struct {
@@ -28,6 +32,10 @@ func main() {
 	flag.StringVar(&cfg.Firm, "name", "", "firm name used in file names")
 	flag.BoolVar(&cfg.Headed, "headed", false, "show the browser window")
 	flag.Parse()
+	if err := promptMissingCredentials(&cfg); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
 	if err := run(context.Background(), cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -75,4 +83,25 @@ func run(ctx context.Context, cfg config) error {
 		}
 	}
 	return errors.Join(failures...)
+}
+
+func promptMissingCredentials(cfg *config) error {
+	if cfg.Email == "" {
+		fmt.Fprint(os.Stderr, "Email: ")
+		email, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		if err != nil {
+			return err
+		}
+		cfg.Email = strings.TrimSpace(email)
+	}
+	if cfg.Password == "" {
+		fmt.Fprint(os.Stderr, "Password: ")
+		password, err := term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Fprintln(os.Stderr)
+		if err != nil {
+			return err
+		}
+		cfg.Password = string(password)
+	}
+	return nil
 }
