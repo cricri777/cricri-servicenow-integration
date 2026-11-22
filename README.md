@@ -6,7 +6,7 @@ This tool is custom for one client portal and one firm. It reads the invoice row
 
 ## Set up a new laptop
 
-Linux and macOS only, because the Makefile needs a POSIX shell.
+Linux only.
 
 1. Install Go (https://go.dev/dl/), Chrome or Chromium, `git` and `make`.
 2. Clone the repo and check the prerequisites.
