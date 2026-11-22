@@ -36,18 +36,25 @@ func fetchInvoiceLinks(parent context.Context, pageURL, email, password string, 
 	if err := chromedp.Do(browserCtx, chromedp.Navigate(pageURL)); err != nil {
 		return nil, nil, err
 	}
-	timeoutCtx, cancelTimeout := context.WithTimeout(browserCtx, 2*time.Minute)
+	linksWait := 30 * time.Second
+	if headed {
+		linksWait = 5 * time.Minute
+	}
+	timeoutCtx, cancelTimeout := context.WithTimeout(browserCtx, linksWait+2*time.Minute)
 	defer cancelTimeout()
-	if err := login(timeoutCtx, email, password); err != nil {
-		return nil, nil, err
+	if !headed {
+		if err := login(timeoutCtx, email, password); err != nil {
+			return nil, nil, err
+		}
+		if err := chromedp.Do(timeoutCtx, chromedp.Navigate(pageURL)); err != nil {
+			return nil, nil, err
+		}
 	}
-	if err := chromedp.Do(timeoutCtx, chromedp.Navigate(pageURL)); err != nil {
-		return nil, nil, err
-	}
-	linksCtx, cancelLinks := context.WithTimeout(timeoutCtx, 30*time.Second)
+	linksCtx, cancelLinks := context.WithTimeout(timeoutCtx, linksWait)
 	defer cancelLinks()
 	if err := chromedp.Do(linksCtx, chromedp.WaitVisible(linkSelector)); err != nil {
-		return nil, nil, errors.New("no invoice links found: check the credentials and the URL")
+		saveDebugPage(browserCtx)
+		return nil, nil, errors.New("no invoice links found, page saved to debug-page.html")
 	}
 	links, err := chromedp.Run(timeoutCtx, chromedp.Evaluate[[]invoiceLink](collectLinksJS))
 	if err != nil {
@@ -80,4 +87,11 @@ func browserCookies(ctx context.Context, pageURL string) ([]*http.Cookie, error)
 		return err
 	}))
 	return cookies, err
+}
+
+func saveDebugPage(ctx context.Context) {
+	html, err := chromedp.Run(ctx, chromedp.Evaluate[string](`location.href + "\n" + document.documentElement.outerHTML`))
+	if err == nil {
+		os.WriteFile("debug-page.html", []byte(html), 0o644)
+	}
 }

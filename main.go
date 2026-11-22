@@ -30,11 +30,13 @@ func main() {
 	flag.StringVar(&cfg.URL, "url", "", "invoices page URL")
 	flag.StringVar(&cfg.OutDir, "out", "", "output directory")
 	flag.StringVar(&cfg.Firm, "name", "", "firm name used in file names")
-	flag.BoolVar(&cfg.Headed, "headed", false, "show the browser window")
+	flag.BoolVar(&cfg.Headed, "headed", false, "log in by hand in a visible browser window")
 	flag.Parse()
-	if err := promptMissingCredentials(&cfg); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+	if !cfg.Headed {
+		if err := promptMissingCredentials(&cfg); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
 	}
 	if err := run(context.Background(), cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -46,7 +48,7 @@ func run(ctx context.Context, cfg config) error {
 	if cfg.URL == "" || cfg.OutDir == "" {
 		return errors.New("--url and --out are required")
 	}
-	if cfg.Email == "" || cfg.Password == "" {
+	if !cfg.Headed && (cfg.Email == "" || cfg.Password == "") {
 		return errors.New("SN_EMAIL and SN_PASS must be set")
 	}
 	if cfg.Firm == "" {
