@@ -2,6 +2,8 @@
 
 Downloads the invoices from a ServiceNow portal into a local directory.
 
+This tool is custom for one client portal and one firm. It reads the invoice rows of that portal page and clicks each row, so it will not work as is on other ServiceNow portals.
+
 ## Prerequisites
 
 Go and Chrome or Chromium. Run `make check` to verify them.
