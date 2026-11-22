@@ -1,8 +1,8 @@
 -include local.mk
 
-URL ?=
-OUT ?=
-NAME ?=
+URL ?= $(SN_URL)
+OUT ?= $(SN_OUT)
+NAME ?= $(SN_NAME)
 
 .PHONY: check build verify run
 

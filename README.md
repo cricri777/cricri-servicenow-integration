@@ -24,11 +24,14 @@ mkdir -p ~/.config/sn-invoices
 touch ~/.config/sn-invoices/env && chmod 600 ~/.config/sn-invoices/env
 ```
 
-Then put these two lines in `~/.config/sn-invoices/env`.
+Then put these lines in `~/.config/sn-invoices/env`. The `SN_URL`, `SN_OUT` and `SN_NAME` lines are optional defaults for `make run`, which sees them only after you run `. ~/.config/sn-invoices/env` in your shell.
 
 ```
 export SN_EMAIL='you@example.com'
 export SN_PASS='your-password'
+export SN_URL='https://acme.service-now.com/cts?id=invoices'
+export SN_OUT="$HOME/Drive/invoices"
+export SN_NAME='acme'
 ```
 
 4. Create `local.mk` in the repo root with your portal URL, the output directory and the firm name. Git ignores this file.
