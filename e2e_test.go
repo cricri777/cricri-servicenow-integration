@@ -4,25 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/http/cookiejar"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 )
-
-func newTestJar(t *testing.T, rawURL string) *cookiejar.Jar {
-	t.Helper()
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	parsed, _ := url.Parse(rawURL)
-	jar.SetCookies(parsed, []*http.Cookie{{Name: "session", Value: "ok"}})
-	return jar
-}
 
 func fakePortal() http.Handler {
 	mux := http.NewServeMux()
@@ -34,8 +21,8 @@ func fakePortal() http.Handler {
 			return
 		}
 		fmt.Fprint(w, `<table>
-			<tr><td>INV-1 2026-01-10</td><td><a href="/sys_attachment.do?sys_id=a">a</a></td></tr>
-			<tr><td>INV-2 2026-02-10</td><td><a href="/sys_attachment.do?sys_id=b">b</a></td></tr></table>`)
+			<tr ng-click="onInvoiceClick(invoice)" onclick="location='/sys_attachment.do?sys_id=a'"><td>2026-01-10</td><td>2026-01-31</td><td>P</td></tr>
+			<tr ng-click="onInvoiceClick(invoice)" onclick="location='/sys_attachment.do?sys_id=b'"><td>2026-02-10</td><td>2026-02-28</td><td>P</td></tr></table>`)
 	})
 	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		if r.FormValue("user_name") != "me@example.com" || r.FormValue("pass") != "secret" {

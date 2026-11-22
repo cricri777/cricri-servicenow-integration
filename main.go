@@ -6,12 +6,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/http"
-	"net/http/cookiejar"
-	"net/url"
 	"os"
 	"strings"
-	"time"
 
 	"golang.org/x/term"
 )
@@ -57,34 +53,7 @@ func run(ctx context.Context, cfg config) error {
 	if err := os.MkdirAll(cfg.OutDir, 0o755); err != nil {
 		return err
 	}
-	links, cookies, err := fetchInvoiceLinks(ctx, cfg.URL, cfg.Email, cfg.Password, cfg.Headed)
-	if err != nil {
-		return err
-	}
-	pageURL, err := url.Parse(cfg.URL)
-	if err != nil {
-		return err
-	}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return err
-	}
-	jar.SetCookies(pageURL, cookies)
-	client := &http.Client{Jar: jar, Timeout: 2 * time.Minute}
-	var failures []error
-	for _, link := range links {
-		path, written, err := downloadInvoice(client, link, cfg.OutDir, cfg.Firm, time.Now())
-		if err != nil {
-			failures = append(failures, err)
-			continue
-		}
-		if written {
-			fmt.Println("downloaded", path)
-		} else {
-			fmt.Println("skipped", path)
-		}
-	}
-	return errors.Join(failures...)
+	return downloadInvoices(ctx, cfg)
 }
 
 func promptMissingCredentials(cfg *config) error {

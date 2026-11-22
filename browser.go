@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"errors"
-	"net/http"
+	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/cdproto/cdp"
-	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 	"github.com/chromedp/chromedp/kb"
 )
@@ -16,15 +18,13 @@ import (
 const (
 	emailSelector    = chromedp.CSS(`input[type="email"], input[name="user_name"], input#user_name, input[type="text"]`)
 	passwordSelector = chromedp.CSS(`input[type="password"]`)
-	linkSelector     = chromedp.CSS(`a[href*="sys_attachment.do"]`)
-	collectLinksJS   = `Array.from(document.querySelectorAll('a[href*="sys_attachment.do"]')).map(a => ({
-		URL: a.href,
-		Text: (a.closest('tr, li, .panel') || a.parentElement).innerText
-	}))`
+	rowCSS           = `tr[ng-click^="onInvoiceClick"]`
+	rowSelector      = chromedp.CSS(rowCSS)
+	downloadTimeout  = time.Minute
 )
 
-func fetchInvoiceLinks(parent context.Context, pageURL, email, password string, headed bool) ([]invoiceLink, []*http.Cookie, error) {
-	options := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.Flag("headless", !headed))
+func downloadInvoices(parent context.Context, cfg config) error {
+	options := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.Flag("headless", !cfg.Headed))
 	if os.Getenv("CHROME_NO_SANDBOX") != "" {
 		options = append(options, chromedp.NoSandbox)
 	}
@@ -33,35 +33,112 @@ func fetchInvoiceLinks(parent context.Context, pageURL, email, password string, 
 	browserCtx, cancelBrowser := chromedp.NewContext(allocatorCtx)
 	defer cancelBrowser()
 
-	if err := chromedp.Do(browserCtx, chromedp.Navigate(pageURL)); err != nil {
-		return nil, nil, err
+	if err := chromedp.Do(browserCtx, chromedp.Navigate(cfg.URL)); err != nil {
+		return err
 	}
-	linksWait := 30 * time.Second
-	if headed {
-		linksWait = 5 * time.Minute
+	rowsWait := 30 * time.Second
+	if cfg.Headed {
+		rowsWait = 5 * time.Minute
 	}
-	timeoutCtx, cancelTimeout := context.WithTimeout(browserCtx, linksWait+2*time.Minute)
-	defer cancelTimeout()
-	if !headed {
-		if err := login(timeoutCtx, email, password); err != nil {
-			return nil, nil, err
+	waitCtx, cancelWait := context.WithTimeout(browserCtx, rowsWait+2*time.Minute)
+	defer cancelWait()
+	if !cfg.Headed {
+		if err := login(waitCtx, cfg.Email, cfg.Password); err != nil {
+			return err
 		}
-		if err := chromedp.Do(timeoutCtx, chromedp.Navigate(pageURL)); err != nil {
-			return nil, nil, err
+		if err := chromedp.Do(waitCtx, chromedp.Navigate(cfg.URL)); err != nil {
+			return err
 		}
 	}
-	linksCtx, cancelLinks := context.WithTimeout(timeoutCtx, linksWait)
-	defer cancelLinks()
-	if err := chromedp.Do(linksCtx, chromedp.WaitVisible(linkSelector)); err != nil {
+	rowsCtx, cancelRows := context.WithTimeout(waitCtx, rowsWait)
+	defer cancelRows()
+	if err := chromedp.Do(rowsCtx, chromedp.WaitVisible(rowSelector)); err != nil {
 		saveDebugPage(browserCtx)
-		return nil, nil, errors.New("no invoice links found, page saved to debug-page.html")
+		return errors.New("no invoice rows found, page saved to debug-page.html")
 	}
-	links, err := chromedp.Run(timeoutCtx, chromedp.Evaluate[[]invoiceLink](collectLinksJS))
+
+	tempDir, err := os.MkdirTemp(cfg.OutDir, ".download-")
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
-	cookies, err := browserCookies(timeoutCtx, pageURL)
-	return links, cookies, err
+	defer os.RemoveAll(tempDir)
+	if err := allowDownloads(browserCtx, tempDir); err != nil {
+		return err
+	}
+	rowCount, err := chromedp.Run(browserCtx, chromedp.Evaluate[int](fmt.Sprintf(`document.querySelectorAll(%q).length`, rowCSS)))
+	if err != nil {
+		return err
+	}
+	var failures []error
+	for index := 0; index < rowCount; index++ {
+		path, written, err := downloadRow(browserCtx, index, tempDir, cfg)
+		if err != nil {
+			failures = append(failures, fmt.Errorf("row %d: %w", index+1, err))
+			continue
+		}
+		if written {
+			fmt.Println("downloaded", path)
+		} else {
+			fmt.Println("skipped", path)
+		}
+	}
+	return errors.Join(failures...)
+}
+
+func allowDownloads(ctx context.Context, directory string) error {
+	return chromedp.Do(ctx, chromedp.Func(func(ctx context.Context, target *chromedp.Target) error {
+		_, err := cdp.Call(ctx, target, browser.SetDownloadBehavior, browser.SetDownloadBehaviorParams{
+			Behavior:     browser.SetDownloadBehaviorBehaviorAllow,
+			DownloadPath: directory,
+		})
+		return err
+	}))
+}
+
+func downloadRow(ctx context.Context, index int, tempDir string, cfg config) (string, bool, error) {
+	rowCtx, cancelRow := context.WithTimeout(ctx, downloadTimeout)
+	defer cancelRow()
+	rowDir := filepath.Join(tempDir, fmt.Sprint(index))
+	if err := os.Mkdir(rowDir, 0o755); err != nil {
+		return "", false, err
+	}
+	if err := allowDownloads(rowCtx, rowDir); err != nil {
+		return "", false, err
+	}
+	row := fmt.Sprintf(`document.querySelectorAll(%q)[%d]`, rowCSS, index)
+	rowText, err := chromedp.Run(rowCtx, chromedp.Evaluate[string](row+`.innerText`))
+	if err != nil {
+		return "", false, err
+	}
+	if err := chromedp.Do(rowCtx, chromedp.Evaluate[chromedp.Void](row+`.click()`)); err != nil {
+		return "", false, err
+	}
+	downloaded, err := waitForDownload(rowCtx, rowDir)
+	if err != nil {
+		return "", false, err
+	}
+	return saveDownload(downloaded, rowText, cfg)
+}
+
+func waitForDownload(ctx context.Context, directory string) (string, error) {
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		entries, err := os.ReadDir(directory)
+		if err != nil {
+			return "", err
+		}
+		for _, entry := range entries {
+			if !strings.HasSuffix(entry.Name(), ".crdownload") {
+				return filepath.Join(directory, entry.Name()), nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return "", errors.New("no download finished after the click")
+		case <-ticker.C:
+		}
+	}
 }
 
 func login(ctx context.Context, email, password string) error {
@@ -75,18 +152,6 @@ func login(ctx context.Context, email, password string) error {
 		chromedp.SendKeys(passwordSelector, password+kb.Enter),
 		chromedp.Sleep(5*time.Second),
 	)
-}
-
-func browserCookies(ctx context.Context, pageURL string) ([]*http.Cookie, error) {
-	var cookies []*http.Cookie
-	err := chromedp.Do(ctx, chromedp.Func(func(ctx context.Context, target *chromedp.Target) error {
-		result, err := cdp.Call(ctx, target, network.GetCookies, network.GetCookiesParams{URLs: []string{pageURL}})
-		for _, cookie := range result.Cookies {
-			cookies = append(cookies, &http.Cookie{Name: cookie.Name, Value: cookie.Value, Path: cookie.Path})
-		}
-		return err
-	}))
-	return cookies, err
 }
 
 func saveDebugPage(ctx context.Context) {
