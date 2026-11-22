@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/chromedp/cdproto/cdp"
@@ -24,6 +25,9 @@ const (
 
 func fetchInvoiceLinks(parent context.Context, pageURL, email, password string, headed bool) ([]invoiceLink, []*http.Cookie, error) {
 	options := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.Flag("headless", !headed))
+	if os.Getenv("CHROME_NO_SANDBOX") != "" {
+		options = append(options, chromedp.NoSandbox)
+	}
 	allocatorCtx, cancelAllocator := chromedp.NewExecAllocator(parent, options...)
 	defer cancelAllocator()
 	browserCtx, cancelBrowser := chromedp.NewContext(allocatorCtx)

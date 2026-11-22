@@ -14,3 +14,5 @@ jobs:
         with:
           go-version-file: go.mod
       - run: make verify
+        env:
+          CHROME_NO_SANDBOX: "1"
