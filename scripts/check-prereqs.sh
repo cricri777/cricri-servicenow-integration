@@ -15,6 +15,9 @@ for binary in google-chrome google-chrome-stable chromium chromium-browser; do
     break
   fi
 done
+if [ -d "/Applications/Google Chrome.app" ] || [ -d "/Applications/Chromium.app" ]; then
+  chrome_found=1
+fi
 if [ "$chrome_found" -eq 0 ]; then
   echo "missing prerequisite: Chrome or Chromium (google-chrome, google-chrome-stable, chromium or chromium-browser)" >&2
   missing=1
